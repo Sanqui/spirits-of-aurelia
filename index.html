@@ -90,10 +90,10 @@
         $("#room_type").html("room type: "+room.type)
         
         $("#choices").html("")
-        $.each(room.choices, function(id, choice){
-            $("#choices").append("<button id='choice_"+id+"'>"+choice+"</button>")
-            $("#choice_"+id).click(function(){
-                send_action(id)
+        $.each(room.choices, function(i, choice){
+            $("#choices").append("<button id='choice_"+choice+"'>"+choice+"</button>")
+            $("#choice_"+choice).click(function(){
+                send_action(choice)
             })
         })
         

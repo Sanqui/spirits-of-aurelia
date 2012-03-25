@@ -12,7 +12,6 @@ from pyramid.decorator import reify
 class MyRequest(Request):
     @reify
     def db(self):
-        print(self.registry.settings)
         maker = self.registry.settings['db.sessionmaker']
         return maker()
 
@@ -25,16 +24,26 @@ def status(request):
     session = request.db
 
     player = session.query(Player).filter_by(id=1).one()
-    player.__init__() # Is this really a good way?
     character = player.characters[-1]
+    character.begin_session() # XXX Is this really a good way?
     room = character.room
+    room.begin_session(character)
+
     
-    messages = player.messages
+    messages = character.messages
+    choices = character.choices
     
     something_happened = False
     
     if "action" in request.GET:
         action = request.GET['action']
+        if action == "proceed" and character.room_state in ("success", "failure"):
+            character.proceed()
+        elif action == "escape":
+            character.messages.append("Not implemented")
+            pass # TODO
+        elif character.room_state == "none":
+            room.action(action)
     else:
         messages.append("Nothing has changed.")
     
@@ -47,12 +56,17 @@ def status(request):
             item = session.query(Item).filter_by(id=1).one()
             player.inventory.append(InventoryItem(item=item))
             messages.append("DEBUG: You've got an item!")
-        session.commit()
     
-    inventory = []
+    if character.room_state in ("success", "failure"):
+        choices = ["proceed"] # XXX
+    choices.append("escape")
+    
+    session.commit()
+    
+    json_inventory = []
     for inventory_item in player.inventory:
         item = inventory_item.item
-        inventory.append({"name": item.name, "desc": item.desc, "category": item.category})
+        json_inventory.append({"name": item.name, "desc": item.desc, "category": item.category})
     s = {
         "game": {
             "player": {
@@ -61,7 +75,7 @@ def status(request):
                 "exp": player.exp,
                 "total_gold": player.total_gold,
                 "tokens": player.tokens,
-                "inventory": inventory
+                "inventory": json_inventory
             },
             "character": {
                 "name": character.name,
@@ -83,11 +97,7 @@ def status(request):
             },
             "room": {
                 "type": room.type,
-                "choices": {
-                    "solve": "Solve",
-                    "use_force": "Use force",
-                    "safe_path": "Find a safe path"
-                }
+                "choices": choices
             },
             "console": messages
         },
