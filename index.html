@@ -1,0 +1,197 @@
+<!doctype html>
+<html>
+<head>
+    <title>trollcraft v0a</title>
+    <style>
+    body, html {height:95%;}
+    
+    ul, li {padding:0; margin:0; list-style:none;}
+    li {display:inline-block;}
+    
+    .invisible {display:none;}
+    
+    .pane {border:1px solid red; height:100%; overflow-y:auto;}
+    .leftpane {width:20%; float:left; }
+    .middlepane {width:50%; margin:auto;}
+    .rightpane {width:20%; float:right;}
+    
+    .levelexp {border:1px solid black; text-align:center;}
+        #expbarback {background-color:silver; width:100%; height:16px;}
+        #expbar {background-color:blue; width:60%; height:100%;}
+    #items {}
+    .item {display:inline-block; float:left; width:64px; height:64px; border:1px solid blue;}
+    #skills {clear:both;}
+    
+    #chat {height:90%;}
+    
+    .tab {width:22%; background:yellow;}
+    #choices buttion {width:22%; background:lightgreen; border-right:1px solid darkgreen;}
+    
+    .screen {height:300px; background:lightblue;}
+    
+    #console {overflow-y:scroll; width:100%; height:6em; line-height:1em;}
+    .console_new {color:darkgreen;}
+    .console_new::before {content: "> ";}
+    
+    
+    #debug_choices::before {content:"debug: "}
+    #debug_console {clear:both; line-height:1; overflow-y:scroll; max-height:132px; font-family:monospace;}
+    #debug_console p{line-height:1; margin:0;padding:0;white-space:pre;}
+    #debug_console p:before {content:">"; color:green;}
+    </style>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script>
+    function log(){
+        text = ""
+        for (argument in arguments){
+            try{
+                text += "; "+arguments[argument].toString()
+            }
+            catch (watermelon){
+                text += ";!!! "+watermelon.message
+            }
+        }
+        $("#debug_console").prepend("<p>"+text.toString())
+    }
+    
+    function show_screen(screen){
+        log("showing screen", screen)
+        $("#screen_room").hide()
+        $("#screen_abilities").hide()
+        $("#screen_perks").hide()
+        $("#screen_highscores").hide()
+        $("#screen_"+screen).show()
+    }
+    
+    function update_game(status){
+        log("Updating game.  Player", status.game.player.name)
+        $("#spinner").css("display", "none")
+        player = status.game.player
+        character = status.game.character
+        room = status.game.room
+        $("#level").html(player.level)
+        $("#score").html(character.gold)
+        $("#items").html("")
+        $.each(player.inventory, function(i, item){
+            if (item.name){
+                $("#items").append("<div class='item' id='item_"+i.toString()+"' title='"+item.desc+"'>"+item.name+"</div>")
+            } else {
+                var locked = false
+                if (item.locked) locked = true
+                $("#items").append("<div class='item' id='item_"+i.toString()+"'>Nothing ("+(locked ? 
+"locked" : "")+")</div>")
+            }
+        })
+        $("#skills").html("")
+        $.each(character.skills, function(skill, value){
+            $("#skills").append("<div>"+skill+": "+value+"</div>")
+        })
+        
+        $("#room_type").html("room type: "+room.type)
+        
+        $("#choices").html("")
+        $.each(room.choices, function(id, choice){
+            $("#choices").append("<button id='choice_"+id+"'>"+choice+"</button>")
+            $("#choice_"+id).click(function(){
+                send_action(id)
+            })
+        })
+        
+        $(".console_new").removeClass("console_new")
+        $.each(status.game.console, function(i, text){
+            $("#console").prepend("<div class='console_new'>"+text+"</div>")
+        })
+        
+        $.each(status.chat.messages, function(i, msg){
+            $("#chat").append("<br><b>"+msg.user+": </b>"+msg.text)
+        })
+    }
+    
+    function send_action(action, mode){
+        if (mode==undefined) mode="action"
+        $("#spinner").css("display", "inline")
+        post = {}
+        post[mode] = action
+        $.getJSON('status', post, update_game);
+    }
+    
+    $(document).ready(function(){
+        log("Loading...")
+        $("#tab_room").click(function(){ show_screen('room') })
+        $("#tab_abilities").click(function(){ show_screen('abilities') })
+        $("#tab_perks").click(function(){ show_screen('perks') })
+        $("#tab_highscores").click(function(){ show_screen('highscores') })
+        $("#debug_choices").html("")
+        debug_choices = {
+            "increase_level": "Increase level",
+            "give_item": "Give item"}
+        $.each(debug_choices, function(id, choice){
+            $("#debug_choices").append("<button id='choice_"+id+"'>"+choice+"</button>")
+            $("#choice_"+id).click(function(){
+                send_action(id, "debug")
+            })
+        })
+        show_screen('room')
+        $.getJSON('status', update_game);
+        $("#game").css("display", "block")
+    });
+    </script>
+</head>
+<body>
+<img src="https://www.loopt.com/images/spinner.gif?1329516024" id="spinner" style="position:fixed; left:50%; top:20%;">
+<div id="game" style="display:none;">
+    <div class="leftpane pane">
+        <div class="levelexp">
+            Level: <span id="level">level</span>
+            <div id="expbarback"><div id="expbar"></div></div>
+        </div>
+        <ul id="items">
+            items
+        </ul>
+        <div id="skills">
+            skills
+        </div>
+    </div>
+    <div class="rightpane pane">
+        <div id="chat">
+            chat
+        </div>
+        <input type="text" id="chatbox">
+    </div>
+    <div class="middlepane pane">
+        <ul class="tabswitcher">
+            <li class="tab" id="tab_room">Room</li>
+            <li class="tab" id="tab_abilities">Abilities</li>
+            <li class="tab" id="tab_perks">Perks</li>
+            <li class="tab" id="tab_highscores">High-scores</li>
+        </ul>
+        <div class="screen" id="screen_room">
+            <div id="room_type"></div>
+            <div id="hp"></div>
+            <div id="score">score</div>
+            <div id="sprite-0"></div>
+        </div>
+        <div class="screen" id="screen_abilities">
+            nub
+        </div>
+        <div class="screen" id="screen_perks">
+            u
+        </div>
+        <div class="screen" id="screen_highscores">
+            u 0
+        </div>
+        <div id="choices">
+            choices
+        </div>
+        <div id="console">
+        </div>
+    </div>
+</div>
+<div id="debug_choices">
+debug choices
+</div>
+<div id="debug_console">
+<p>Initial text.  No JS or broken?
+</div>
+</body>
+</html>
