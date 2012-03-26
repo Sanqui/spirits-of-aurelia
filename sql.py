@@ -58,15 +58,11 @@ class Item(Base):
 class Room(Base):
     __tablename__ = "tc_rooms"
     id = Column(Integer, primary_key=True)
-    type = Column(Enum("unspecified", "puzzle_door", "monster", "trap_room", "treasure_room", "guardian", "pvp", "questgiver_room", "trading_room"), nullable=False)
-    parameter = Column(JSONEncodedDict, nullable=False)
+    discriminator = Column('type', String(32))
+    __mapper_args__ = {'polymorphic_on': discriminator}
     
     def begin_session(self, character):
         self.character = character
-        print(self.character.room_state)
-        if self.character.room_state == "none":
-            if self.type == "puzzle_door": # XXX Subclass me!  Subclass me!
-                self.character.choices += ["solve", "force", "safe_path"]
     
     def success(self, message=None):
         if message: self.character.messages.append(message)
@@ -80,26 +76,44 @@ class Room(Base):
         self.character.choices = []
         
     def action(self, choice):
-        if self.type == "puzzle_door": # XXX subclass
-            if choice == "solve":
-                if self.character.problem_solving >= self.parameter['problem_solving']:
-                    self.success("You've solved the door!")
-                else:
-                    self.failure("Failed to solve the door!")
-            elif choice == "force":
-                if self.character.brute_forcing >= self.parameter['brute_forcing']:
-                    self.success("You've solved the door by brute forcing!")
-                else:
-                    self.failure("Failed to brute force!")
-            elif choice == "safe_path":
-                if self.character.pathfinding >= self.parameter['pathfinding']:
-                    self.success("You've found a way to get past the door!")
-                else:
-                    self.failure("Failed!")
-            else:
-                raise ValueError("Invalid choice")
+        raise ValueError("This room type does not define choices")
         
     #stamp = relationship("Stamp", uselist=False, backref="parent")
+
+class PuzzleDoorRoom(Room):
+    __tablename__ = "tc_rooms_puzzle_door"
+    __mapper_args__ = {'polymorphic_identity': 'puzzle_door'}
+    id = Column(Integer, ForeignKey('tc_rooms.id'), primary_key=True)
+    
+    problem_solving = Column(Integer)
+    brute_forcing = Column(Integer)
+    pathfinding = Column(Integer)
+    damage = Column(Integer)
+    door = Column(String(32)) # Enum?
+    
+    def begin_session(self, character):
+        self.character = character
+        if self.character.room_state == "none":
+            self.character.choices += ["solve", "force", "safe_path"]
+        
+    def action(self, choice):
+        if choice == "solve":
+            if self.character.problem_solving >= self.problem_solving:
+                self.success("You've solved the door!")
+            else:
+                self.failure("Failed to solve the door!")
+        elif choice == "force":
+            if self.character.brute_forcing >= self.brute_forcing:
+                self.success("You've solved the door by brute forcing!")
+            else:
+                self.failure("Failed to brute force!")
+        elif choice == "safe_path":
+            if self.character.pathfinding >= self.pathfinding:
+                self.success("You've found a way to get past the door!")
+            else:
+                self.failure("Failed!")
+        else:
+            raise ValueError("Invalid choice")
 
 class InventoryItem(Base):
     __tablename__ = 'tc_inventory_items'
@@ -149,6 +163,9 @@ class Character(Base):
     
     gold = Column(Integer)
     
+    def __str__(self):
+        return "Character {} {} of player {}, depth {}, room {} in state {}".format(self.class_, self.name, self.player, self.depth, self.room, self.room_state)
+    
     def begin_session(self):
         self.messages = []
         self.choices = []
@@ -158,31 +175,6 @@ class Character(Base):
         self.room_state = "none"
         self.messages.append("You've entered a new room.")
         self.room.begin_session(self) #eww?  or maybe this is right
-
-
-"""class RoomPuzzleDoor(Room):
-    #enter_message = "You have entered a Puzzle Door room."
-    #choices = {"solve": solve, "force": force, "safe_path": safe_path}
-    def choice(self):
-        if choice == "solve":
-            if character.problem_solving >= self.parameter.problem_solving:
-                self.success("You've solved the door!")
-            else:
-                self.failure("Failed to solve the door!  ")
-        elif choice == "force":
-            if character.brute_forcing >= self.parameter.brute_forcing:
-                self.success("You've solved the door by brute forcing!")
-            else:
-                self.failure("Failed to brute force!")
-        elif choice == "safe_path":
-            if character.pathfinding >= self.parameter.pathfinding:
-                self.succes("You've found a way to get past the door!")
-            else:
-                self.failure("Failed!")
-        else:
-            raise ValueError("Invalid choice")
-
-#room_mappings"""
 
 if __name__ == "__main__":
     Session = sessionmaker(bind=engine)#scoped_session(sessionmaker(bind=engine))
@@ -200,8 +192,8 @@ if __name__ == "__main__":
         session.add(item)
 
     rooms = [
-        Room(type="puzzle_door", parameter={"problem_solving": 1, "brute_forcing":1, "pathfinding": 1, "damage": 20, "door": "wooden"}),
-        Room(type="treasure_room", parameter={})
+        PuzzleDoorRoom(problem_solving=1, brute_forcing=1, pathfinding=1, damage=20, door="wooden"),
+#        Room(type="treasure_room", parameter={})
     ]
 
     for room in rooms:

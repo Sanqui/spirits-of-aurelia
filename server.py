@@ -35,13 +35,16 @@ def status(request):
     
     something_happened = False
     
+    log.info(character)
+    
     if "action" in request.GET:
         action = request.GET['action']
         if action == "proceed" and character.room_state in ("success", "failure"):
             character.proceed()
         elif action == "escape":
-            character.messages.append("Not implemented")
-            pass # TODO
+            character.messages.append("Not implemented.  Restarted depth and healed.")
+            character.depth = 1
+            character.hp = 100
         elif character.room_state == "none":
             room.action(action)
     else:
@@ -96,7 +99,7 @@ def status(request):
                 "gold": character.gold
             },
             "room": {
-                "type": room.type,
+                "type": room.discriminator,
                 "choices": choices
             },
             "console": messages
@@ -119,6 +122,6 @@ if __name__ == '__main__':
     config.add_view(status, route_name='status')
 
     app = config.make_wsgi_app()
-    server = make_server('0.0.0.0', 8088, app)
+    server = make_server('0.0.0.0', 5223, app)
     print("Serving.")
     server.serve_forever()
