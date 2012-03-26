@@ -95,6 +95,11 @@
         
         $("#room_type").html("room type: "+room.type)
         
+        if (room.sprite) {
+            $("#sprite-0").html("<img src='"+room.sprite+"'>")
+        } else $("#sprite-0").html("")
+            
+        
         $("#choices").html("")
         $.each(room.choices, function(i, choice){
             $("#choices").append("<button id='choice_"+choice+"'>"+choice+"</button>")

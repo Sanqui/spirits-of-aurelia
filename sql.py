@@ -56,6 +56,17 @@ class Item(Base):
     effect = Column(Enum("none", "passive"), nullable=False, default="none")
     parameter = Column(JSONEncodedDict, nullable=False)
 
+class Creature(Base):
+    __tablename__ = "tc_creatures"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(64), nullable=False)
+    sprite = Column(String(255))
+    type = Column(String(64), nullable=False) #make a table of this later
+    beast = Column(Boolean, nullable=False)
+    
+    fighting = Column(Integer)
+    swaying = Column(Integer)
+
 class Room(Base):
     __tablename__ = "tc_rooms"
     id = Column(Integer, primary_key=True)
@@ -137,14 +148,66 @@ class TreasureRoom(Room):
         self.character = character
         if self.character.room_state == "none":
             self.character.choices += ["pick_up"]
-        
+
     def enter(self):
-        self.character.messages.append("You're in a treasure room.  There is {} gold.".format(self.gold))
+        gold = self.gold
+        if self.gold == None:
+            gold = self.character.depth*99
+        self.character.messages.append("You're in a treasure room.  There is {} gold.".format(gold))
         
     def action(self, choice):
         if choice == "pick_up":
-            self.character.gold += self.gold
+            gold = self.gold
+            if self.gold == None:
+                gold = self.character.depth*99
+            self.character.gold += gold
             self.success("You've picked up the gold!")
+        else:
+            raise ValueError("Invalid choice")
+
+class MonsterRoom(Room):
+    __tablename__ = "tc_rooms_monster_rooms"
+    __mapper_args__ = {'polymorphic_identity': 'monster_room'}
+    id = Column(Integer, ForeignKey('tc_rooms.id'), primary_key=True)
+    
+    creature_id = Column(Integer, ForeignKey('tc_creatures.id'))
+    creature = relationship("Creature")
+    
+    def begin_session(self, character):
+        self.character = character
+        if self.character.room_state == "none":
+            self.character.choices += ["fight", "sway"]
+        
+    def enter(self):
+        self.character.messages.append("You're in a monster room.  There is a {} in your way.".format(self.creature.name))
+        
+    def success(self, message):
+        gold = self.creature.swaying*20
+        self.character.gold += gold
+        message += "  You have gained {} gold!".format(gold)
+        self.character.messages.append(message)
+        self.character.room_state = "success"
+        
+    def failure(self, message):
+        damage = self.creature.fighting*10
+        message += "  You took {} damage!".format(damage)
+        self.character.hp -= damage # TODO make a method for this
+        self.character.messages.append(message)
+        self.character.room_state = "failure"
+        
+    def action(self, choice):
+        if choice == "fight":
+            if self.creature.fighting <= self.character.fighting:
+                damage = self.creature.fighting*2
+                self.character.hp -= damage
+                self.success("You have beaten {} losing {} HP.".format(self.creature.name, damage))
+            else:
+                self.failure("{} has beaten you up...".format(self.creature.name))
+        elif choice == "sway":
+            if self.creature.swaying <= self.character.swaying:
+                self.success("You've swayed past {}!".format(self.creature.name))
+            else:
+                self.failure("You failed to sway past {}...".format(self.creature.name))
         else:
             raise ValueError("Invalid choice")
 
@@ -227,11 +290,19 @@ if __name__ == "__main__":
 
     for item in items:
         session.add(item)
-
+    
+    creatures = [
+        Creature(name="Rat", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133261904284.png", type="rat", beast=False, fighting=1, swaying=3),
+        Creature(name="Bear", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133267590222.png", type="bear", beast=True, fighting=5, swaying=1)
+    ]
+    for creature in creatures:
+        session.add(creature)
+    
     rooms = [
         PuzzleDoorRoom(problem_solving=5, brute_forcing=1, pathfinding=1, damage=20, door="wooden"),
-        TreasureRoom(gold=20)
-#        Room(type="treasure_room", parameter={})
+        TreasureRoom(gold=None),
+        MonsterRoom(creature=creatures[0]),
+        MonsterRoom(creature=creatures[1])
     ]
 
     for room in rooms:

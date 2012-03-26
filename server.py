@@ -72,6 +72,11 @@ def status(request):
     for inventory_item in player.inventory:
         item = inventory_item.item
         json_inventory.append({"name": item.name, "desc": item.desc, "category": item.category})
+        
+    sprite = None # TODO make this flexible
+    if character.room.discriminator == "monster_room": # use character not room because room could've changed XXX
+        sprite = character.room.creature.sprite
+        
     s = {
         "game": {
             "player": {
@@ -102,7 +107,8 @@ def status(request):
             },
             "room": {
                 "type": room.discriminator,
-                "choices": choices
+                "choices": choices,
+                "sprite": sprite
             },
             "console": messages
         },
