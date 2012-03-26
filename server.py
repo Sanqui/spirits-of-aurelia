@@ -25,10 +25,11 @@ def status(request):
 
     player = session.query(Player).filter_by(id=1).one()
     character = player.characters[-1]
-    character.begin_session() # XXX Is this really a good way?
+    character.begin_session(session) # XXX Is this really a good way? XXX eww passing the session
     room = character.room
-    room.begin_session(character)
 
+
+    room.begin_session(character)
     
     messages = character.messages
     choices = character.choices
@@ -48,7 +49,8 @@ def status(request):
         elif character.room_state == "none":
             room.action(action)
     else:
-        messages.append("Nothing has changed.")
+        #messages.append("Nothing has changed.")
+        room.enter()
     
     if "debug" in request.GET: # XXX change this to POST sometime
         debug = request.GET['debug']

@@ -13,6 +13,7 @@ log.addHandler(sh)
 import json
 import datetime
 now = datetime.datetime.now
+import random
 log.info("Starting up..")
 
 import sqlalchemy
@@ -96,6 +97,16 @@ class PuzzleDoorRoom(Room):
         if self.character.room_state == "none":
             self.character.choices += ["solve", "force", "safe_path"]
         
+    def enter(self):
+        self.character.messages.append("You're in a puzzle door room.  [problem_solving = {}]".format(self.problem_solving))
+        
+    def failure(self, message=None):
+        message += "  You took {} damage!".format(self.damage)
+        if message: self.character.messages.append(message)
+        self.character.room_state = "failure"
+        self.character.choices = []
+        self.character.hp -= 20
+        
     def action(self, choice):
         if choice == "solve":
             if self.character.problem_solving >= self.problem_solving:
@@ -112,6 +123,28 @@ class PuzzleDoorRoom(Room):
                 self.success("You've found a way to get past the door!")
             else:
                 self.failure("Failed!")
+        else:
+            raise ValueError("Invalid choice")
+            
+class TreasureRoom(Room):
+    __tablename__ = "tc_rooms_treasure_rooms"
+    __mapper_args__ = {'polymorphic_identity': 'treasure_room'}
+    id = Column(Integer, ForeignKey('tc_rooms.id'), primary_key=True)
+    
+    gold = Column(Integer)
+    
+    def begin_session(self, character):
+        self.character = character
+        if self.character.room_state == "none":
+            self.character.choices += ["pick_up"]
+        
+    def enter(self):
+        self.character.messages.append("You're in a treasure room.  There is {} gold.".format(self.gold))
+        
+    def action(self, choice):
+        if choice == "pick_up":
+            self.character.gold += self.gold
+            self.success("You've picked up the gold!")
         else:
             raise ValueError("Invalid choice")
 
@@ -166,15 +199,19 @@ class Character(Base):
     def __str__(self):
         return "Character {} {} of player {}, depth {}, room {} in state {}".format(self.class_, self.name, self.player, self.depth, self.room, self.room_state)
     
-    def begin_session(self):
+    def begin_session(self, session):
         self.messages = []
         self.choices = []
+        self.session = session
     
     def proceed(self):
         self.depth += 1
         self.room_state = "none"
         self.messages.append("You've entered a new room.")
+        rooms = self.session.query(Room).all()
+        self.room = random.choice(rooms)
         self.room.begin_session(self) #eww?  or maybe this is right
+        self.room.enter()
 
 if __name__ == "__main__":
     Session = sessionmaker(bind=engine)#scoped_session(sessionmaker(bind=engine))
@@ -192,7 +229,8 @@ if __name__ == "__main__":
         session.add(item)
 
     rooms = [
-        PuzzleDoorRoom(problem_solving=1, brute_forcing=1, pathfinding=1, damage=20, door="wooden"),
+        PuzzleDoorRoom(problem_solving=5, brute_forcing=1, pathfinding=1, damage=20, door="wooden"),
+        TreasureRoom(gold=20)
 #        Room(type="treasure_room", parameter={})
     ]
 
