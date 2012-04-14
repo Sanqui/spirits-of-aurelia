@@ -70,6 +70,8 @@ class Creature(Base):
 class Room(Base):
     __tablename__ = "tc_rooms"
     id = Column(Integer, primary_key=True)
+    min_depth= Column(Integer)
+    max_depth= Column(Integer)
     discriminator = Column('type', String(32))
     __mapper_args__ = {'polymorphic_on': discriminator}
     
@@ -102,21 +104,17 @@ class PuzzleDoorRoom(Room):
     pathfinding = Column(Integer)
     damage = Column(Integer)
     door = Column(String(32)) # Enum?
-    
-    def begin_session(self, character):
-        self.character = character
-        if self.character.room_state == "none":
-            self.character.choices += ["solve", "force", "safe_path"]
         
     def enter(self):
         self.character.messages.append("You're in a puzzle door room.  [problem_solving = {}]".format(self.problem_solving))
+        self.character.choices += ["solve", "force", "safe_path"]
         
     def failure(self, message=None):
         message += "  You took {} damage!".format(self.damage)
         if message: self.character.messages.append(message)
         self.character.room_state = "failure"
         self.character.choices = []
-        self.character.hp -= 20
+        self.character.hurt(self.damage)
         
     def action(self, choice):
         if choice == "solve":
@@ -143,17 +141,13 @@ class TreasureRoom(Room):
     id = Column(Integer, ForeignKey('tc_rooms.id'), primary_key=True)
     
     gold = Column(Integer)
-    
-    def begin_session(self, character):
-        self.character = character
-        if self.character.room_state == "none":
-            self.character.choices += ["pick_up"]
 
     def enter(self):
         gold = self.gold
         if self.gold == None:
             gold = self.character.depth*99
         self.character.messages.append("You're in a treasure room.  There is {} gold.".format(gold))
+        self.character.choices += ["pick_up"]
         
     def action(self, choice):
         if choice == "pick_up":
@@ -165,6 +159,29 @@ class TreasureRoom(Room):
         else:
             raise ValueError("Invalid choice")
 
+class TrapRoom(Room):
+    __tablename__ = "tc_rooms_trap_rooms"
+    __mapper_args__ = {'polymorphic_identity': 'trap_room'}
+    id = Column(Integer, ForeignKey('tc_rooms.id'), primary_key=True)
+    
+    damage = Column(Integer)
+
+    def enter(self):
+        if self.character.pathfinding > 3:
+            self.character.messages.append("You have avoided an obvious trap room.")
+            self.character.proceed(increase_depth=False)
+        else:
+            self.character.messages.append("It's a trap!")
+            self.character.choices += ["run_through"]
+        
+    def action(self, choice):
+        if choice == "run_through":
+            self.character.hurt(self.damage)
+            self.character.messages.append("You ran through the trap, taking {} damage!".format(self.damage))
+            self.character.proceed()
+        else:
+            raise ValueError("Invalid choice")
+
 class MonsterRoom(Room):
     __tablename__ = "tc_rooms_monster_rooms"
     __mapper_args__ = {'polymorphic_identity': 'monster_room'}
@@ -172,14 +189,10 @@ class MonsterRoom(Room):
     
     creature_id = Column(Integer, ForeignKey('tc_creatures.id'))
     creature = relationship("Creature")
-    
-    def begin_session(self, character):
-        self.character = character
-        if self.character.room_state == "none":
-            self.character.choices += ["fight", "sway"]
         
     def enter(self):
         self.character.messages.append("You're in a monster room.  There is a {} in your way.".format(self.creature.name))
+        self.character.choices += ["fight", "sway"]
         
     def success(self, message):
         gold = self.creature.swaying*20
@@ -189,9 +202,9 @@ class MonsterRoom(Room):
         self.character.room_state = "success"
         
     def failure(self, message):
-        damage = self.creature.fighting*10
+        damage = self.creature.fighting*(19-self.creature.fighting)
         message += "  You took {} damage!".format(damage)
-        self.character.hp -= damage # TODO make a method for this
+        self.character.hurt(damage)
         self.character.messages.append(message)
         self.character.room_state = "failure"
         
@@ -199,7 +212,7 @@ class MonsterRoom(Room):
         if choice == "fight":
             if self.creature.fighting <= self.character.fighting:
                 damage = self.creature.fighting*2
-                self.character.hp -= damage
+                self.character.hurt(damage)
                 self.success("You have beaten {} losing {} HP.".format(self.creature.name, damage))
             else:
                 self.failure("{} has beaten you up...".format(self.creature.name))
@@ -211,12 +224,63 @@ class MonsterRoom(Room):
         else:
             raise ValueError("Invalid choice")
 
+class GuardianRoom(Room):
+    __tablename__ = "tc_rooms_guardian_rooms"
+    __mapper_args__ = {'polymorphic_identity': 'guardian_room'}
+    id = Column(Integer, ForeignKey('tc_rooms.id'), primary_key=True)
+    
+    creature_id = Column(Integer, ForeignKey('tc_creatures.id'))
+    creature = relationship("Creature")
+        
+    def enter(self):
+        self.character.messages.append("You're in a guardian room.  There is a {} guarding some treasure!".format(self.creature.name))
+        self.character.choices += ["ignore", "fight", "sway"]
+        
+    def success(self, message):
+        gold = self.character.depth*99
+        self.character.gold += gold
+        message += "  You have gained {} gold!".format(gold)
+        self.character.messages.append(message)
+        self.character.room_state = "success"
+        
+    def failure(self, message):
+        damage = self.creature.fighting*(19-self.creature.fighting)
+        message += "  You took {} damage!".format(damage)
+        self.character.hurt(damage)
+        self.character.messages.append(message)
+        self.character.room_state = "failure"
+        
+    def action(self, choice):
+        if choice == "ignore":
+            self.character.messages.append("You silently walked towards the door.")
+            self.character.proceed()
+        elif choice == "fight":
+            if self.creature.fighting <= self.character.fighting:
+                damage = self.creature.fighting*2
+                self.character.hurt(damage)
+                self.success("You have beaten {} losing {} HP.".format(self.creature.name, damage))
+            else:
+                self.failure("{} has beaten you up...".format(self.creature.name))
+        elif choice == "sway":
+            if self.creature.swaying <= self.character.swaying:
+                self.success("You've swayed past {}!".format(self.creature.name))
+            else:
+                self.failure("You failed to sway past {}...".format(self.creature.name))
+        else:
+            raise ValueError("Invalid choice")
+            
 class InventoryItem(Base):
     __tablename__ = 'tc_inventory_items'
     id = Column(Integer, primary_key=True)
-    player_id = Column(Integer, ForeignKey('tc_players.id'), nullable=False)
+    inventory_id = Column(Integer, ForeignKey('tc_inventories.id'), nullable=False)
+    inventory = relationship("Inventory", backref="items")
     item_id = Column(Integer, ForeignKey('tc_items.id'), nullable=False)
     item = relationship("Item")
+
+class Inventory(Base):
+    __tablename__ = "tc_inventories"
+    id = Column(Integer, primary_key=True)
+    size = Column(Integer)
 
 class Player(Base):
     __tablename__ = 'tc_players'
@@ -229,7 +293,8 @@ class Player(Base):
     exp = Column(Integer)
     total_gold = Column(Integer)
     tokens = Column(Integer)
-    inventory = relationship("InventoryItem")
+    inventory_id = Column(Integer, ForeignKey('tc_inventories.id'), nullable=False)
+    inventory = relationship("Inventory", backref="owner")
     #perks
 
 class Character(Base):
@@ -267,8 +332,9 @@ class Character(Base):
         self.choices = []
         self.session = session
     
-    def proceed(self):
-        self.depth += 1
+    def proceed(self, increase_depth=True):
+        if increase_depth:
+            self.depth += 1
         self.room_state = "none"
         self.messages.append("You've entered a new room.")
         rooms = self.session.query(Room).all()
@@ -276,6 +342,16 @@ class Character(Base):
         self.room.begin_session(self) #eww?  or maybe this is right
         self.room.enter()
 
+    def hurt(self, damage, message=None):
+        self.hp -= damage
+        if message:
+            self.messages.append(message.format(damage=damage))
+        if self.hp <= 0:
+            self.messages.append("You have died.")
+            self.depth = 0
+            self.proceed()
+            self.hp = 100 # TODO
+        
 if __name__ == "__main__":
     Session = sessionmaker(bind=engine)#scoped_session(sessionmaker(bind=engine))
     session = Session()
@@ -293,23 +369,27 @@ if __name__ == "__main__":
     
     creatures = [
         Creature(name="Rat", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133261904284.png", type="rat", beast=False, fighting=1, swaying=3),
-        Creature(name="Bear", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133267590222.png", type="bear", beast=True, fighting=5, swaying=1)
-    ]
+        Creature(name="Bear", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133267590222.png", type="bear", beast=True, fighting=5, swaying=1),
+        Creature(name="Pony", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133390050052.png", type="pony", beast=True, fighting=5, swaying=5),
+        Creature(name="Ponyta", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133390054533.png", type="pony", beast=True, fighting=20, swaying=20)
+        ]
     for creature in creatures:
         session.add(creature)
     
     rooms = [
-        PuzzleDoorRoom(problem_solving=5, brute_forcing=1, pathfinding=1, damage=20, door="wooden"),
-        TreasureRoom(gold=None),
-        MonsterRoom(creature=creatures[0]),
-        MonsterRoom(creature=creatures[1])
+        PuzzleDoorRoom(min_depth=1, max_depth=None, problem_solving=5, brute_forcing=1, pathfinding=1, damage=20, door="wooden"),
+        TreasureRoom(min_depth=1, max_depth=None, gold=None),
+        MonsterRoom(min_depth=1, max_depth=None, creature=creatures[0]),
+        MonsterRoom(min_depth=1, max_depth=None, creature=creatures[1]),
+        TrapRoom(min_depth=2, max_depth=None, damage=20),
+        GuardianRoom(min_depth=1, max_depth=None, creature=creatures[3]),
     ]
 
     for room in rooms:
         session.add(room)
     
     foreveralone = Player(name="foreveralone", password="", timestamp=now(), level=1, exp=0, total_gold=20, tokens=5,
-        inventory = [InventoryItem(item=items[1]), InventoryItem(item=items[2])])
+        inventory = Inventory(items=[InventoryItem(item=items[1]), InventoryItem(item=items[2])], size=9))
     session.add(foreveralone)
     
     character = Character(player=foreveralone, name="Ofdslafd", dead=False, depth=1, class_="wizard",

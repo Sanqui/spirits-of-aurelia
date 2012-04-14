@@ -68,6 +68,10 @@
     }
     
     function update_game(status){
+        if (status.error){
+            log("Error from server: ", status.error)
+            
+        }
         log("Updating game.  Player", status.game.player.name)
         $("#spinner").css("display", "none")
         player = status.game.player
@@ -110,7 +114,8 @@
         
         $(".console_new").removeClass("console_new")
         $.each(status.game.console, function(i, text){
-            $("#console").prepend("<div class='console_new'>"+text+"</div>")
+            $("#console").append("<div class='console_new'>"+text+"</div>")
+            $("#console").scrollTop(99999)
         })
         
         $.each(status.chat.messages, function(i, msg){
@@ -193,10 +198,11 @@
         <div class="screen" id="screen_highscores">
             u 0
         </div>
+        <div id="console">
+        <div>&nbsp</div><div>&nbsp</div><div>&nbsp</div><div>&nbsp</div><div>&nbsp</div><div>&nbsp</div><div>&nbsp</div>
+        </div>
         <div id="choices">
             choices
-        </div>
-        <div id="console">
         </div>
     </div>
 </div>
