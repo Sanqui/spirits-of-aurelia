@@ -23,7 +23,9 @@
     #hpbar {background-color:red; width:100%; height:100%;}
     
     #items {}
-    .item {display:inline-block; float:left; width:64px; height:64px; border:1px solid blue;}
+    .item {display:inline-block; float:left; width:64px; height:64px; border:1px solid black;}
+    .item.usable { border:1px solid blue; }
+    .item.usable:hover { box-shadow:inset 0px 0px 7px 7px rgba(0,0,255,0.2); }
     #skills {clear:both;}
     
     #chat {height:90%;}
@@ -84,11 +86,14 @@
         $("#items").html("")
         $.each(player.inventory, function(i, item){
             if (item.name){
-                $("#items").append("<div class='item' id='item_"+i.toString()+"' title='"+item.desc+"'>"+item.name+"</div>")
+                $("#items").append("<div class='item "+item.category+"' id='item_"+item.id.toString()+"' title='"+item.desc+"' style='background-image:url(\"/static/"+item.sprite+"\")'>"+item.name+"</div>")
+                $("#item_"+item.id.toString()).click(function(){
+                    send_action(item.id, "use_item")
+                })
             } else {
                 var locked = false
                 if (item.locked) locked = true
-                $("#items").append("<div class='item' id='item_"+i.toString()+"'>Nothing ("+(locked ? 
+                $("#items").append("<div class='item' id='item_empty_"+i.toString()+"'>Nothing ("+(locked ? 
 "locked" : "")+")</div>")
             }
         })

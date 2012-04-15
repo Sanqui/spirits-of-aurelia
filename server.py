@@ -37,6 +37,15 @@ def status(request):
         
         log.info(character)
         
+        if "use_item" in request.GET:
+            item_id = request.GET['use_item']
+            inventory_item = session.query(InventoryItem).filter_by(id=item_id).scalar()
+            if inventory_item in player.inventory.items: # let's make sure we're not using somebody else's item
+                # this is: ugly now, pretty later (when we're clear on what items can and can't do)
+                if inventory_item.item.name=="Potion":
+                    character.heal(20, "The potion has healed you by {0} HP!")
+                    session.delete(inventory_item)
+        
         if "action" in request.GET:
             action = request.GET['action']
             if action == "proceed" and character.room_state in ("success", "failure"):
@@ -57,7 +66,7 @@ def status(request):
                 player.level += 1
                 messages.append("DEBUG: You've gained a level!")
             elif debug == "give_item":
-                item = session.query(Item).filter_by(id=1).one()
+                item = session.query(Item).filter_by(name="Potion").one()
                 player.inventory.items.append(InventoryItem(item=item))
                 messages.append("DEBUG: You've got an item!")
         
@@ -70,7 +79,7 @@ def status(request):
         json_inventory = []
         for inventory_item in player.inventory.items:
             item = inventory_item.item
-            json_inventory.append({"name": item.name, "desc": item.desc, "category": item.category})
+            json_inventory.append({"name": item.name, "desc": item.desc, "category": item.category, "sprite": item.sprite, "id": inventory_item.id})
             
         sprite = None # TODO make this flexible
         if character.room.discriminator == "monster_room": # use character not room because room could've changed XXX
@@ -133,6 +142,7 @@ if __name__ == '__main__':
     config.add_view(index, route_name='index')
     config.add_route('status', '/status')
     config.add_view(status, route_name='status')
+    config.add_static_view(name='static', path='static')
 
     app = config.make_wsgi_app()
     server = make_server('0.0.0.0', 5223, app)

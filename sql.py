@@ -51,9 +51,10 @@ class Item(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(64), nullable=False)
     desc = Column(String(512), nullable=False)
+    sprite = Column(String(255))
     category = Column(Enum("unspecified", "equip", "usable", "trash"), nullable=False)
     questable = Column(Boolean, nullable=False)
-    effect = Column(Enum("none", "passive"), nullable=False, default="none")
+    effect = Column(Enum("none", "passive", "permanent"), nullable=False, default="none")
     parameter = Column(JSONEncodedDict, nullable=False)
 
 class Creature(Base):
@@ -352,6 +353,15 @@ class Character(Base):
             self.proceed()
             self.hp = 100 # TODO
         
+    def heal(self, heal, message=None):
+        if message: self.messages.append(message.format(heal))
+        if self.hp > 100:
+            self.messages.append("But it had no effect!")
+        else:
+            self.hp += heal
+            if self.hp > 100:
+                self.hp = 100
+        
 if __name__ == "__main__":
     Session = sessionmaker(bind=engine)#scoped_session(sessionmaker(bind=engine))
     session = Session()
@@ -361,7 +371,10 @@ if __name__ == "__main__":
     items = [
         Item(name="Debug Staff", desc="May <s>explode</s>throw an exception at any moment.", category="equip", questable=False, effect="none", parameter={}),
         Item(name="Plain Staff", desc="Kind of shitty.", category="equip", questable=True, effect="passive", parameter={'effect': {'fighting': 1}}),
-        Item(name="Rock", desc="Is nothing but extra weight.", category="trash", questable=True, effect="none", parameter={})
+        Item(name="Rock", desc="Is nothing but extra weight.", category="trash", questable=True, effect="none", parameter={}),
+        Item(name="Book", sprite="items/book.png", desc="Eggs on back, what's inside?", category="trash", questable=True, effect="none", parameter={}),
+        Item(name="Potion", sprite="items/potion.png", desc="Heals you, I guess.", category="usable", questable=True, effect="permanent", parameter={'effect': {'hp': 20}}),
+        Item(name="Sword", sprite="items/sword.png", desc="A sword.  What's there to say?", category="equip", questable=True, effect="passive", parameter={'effect': {'fighting': 1}})
     ]
 
     for item in items:
@@ -389,7 +402,7 @@ if __name__ == "__main__":
         session.add(room)
     
     foreveralone = Player(name="foreveralone", password="", timestamp=now(), level=1, exp=0, total_gold=20, tokens=5,
-        inventory = Inventory(items=[InventoryItem(item=items[1]), InventoryItem(item=items[2])], size=9))
+        inventory = Inventory(items=[InventoryItem(item=items[3]), InventoryItem(item=items[4]), InventoryItem(item=items[5])], size=9))
     session.add(foreveralone)
     
     character = Character(player=foreveralone, name="Ofdslafd", dead=False, depth=1, class_="wizard",
