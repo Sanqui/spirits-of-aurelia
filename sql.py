@@ -91,7 +91,11 @@ class Room(Base):
         self.character.choices = []
         
     def action(self, choice):
-        raise ValueError("This room type does not define choices")
+        f = getattr(self, "action_"+choice, None)
+        if f is None:
+            raise ValueError("Invalid choice for this type of room.")
+        else:
+            f()
         
     #stamp = relationship("Stamp", uselist=False, backref="parent")
 
@@ -117,24 +121,23 @@ class PuzzleDoorRoom(Room):
         self.character.choices = []
         self.character.hurt(self.damage)
         
-    def action(self, choice):
-        if choice == "solve":
-            if self.character.problem_solving >= self.problem_solving:
-                self.success("You've solved the door!")
-            else:
-                self.failure("Failed to solve the door!")
-        elif choice == "force":
-            if self.character.brute_forcing >= self.brute_forcing:
-                self.success("You've solved the door by brute forcing!")
-            else:
-                self.failure("Failed to brute force!")
-        elif choice == "safe_path":
-            if self.character.pathfinding >= self.pathfinding:
-                self.success("You've found a way to get past the door!")
-            else:
-                self.failure("Failed!")
+    def action_solve(self):
+        if self.character.problem_solving >= self.problem_solving:
+            self.success("You've solved the door!")
         else:
-            raise ValueError("Invalid choice")
+            self.failure("Failed to solve the door!")
+    
+    def action_force(self):
+        if self.character.brute_forcing >= self.brute_forcing:
+            self.success("You've solved the door by brute forcing!")
+        else:
+            self.failure("Failed to brute force!")
+    
+    def action_safe_path(self):
+        if self.character.pathfinding >= self.pathfinding:
+            self.success("You've found a way to get past the door!")
+        else:
+            self.failure("Failed!")
             
 class TreasureRoom(Room):
     __tablename__ = "tc_rooms_treasure_rooms"
@@ -149,16 +152,13 @@ class TreasureRoom(Room):
             gold = self.character.depth*99
         self.character.messages.append("You're in a treasure room.  There is {} gold.".format(gold))
         self.character.choices += ["pick_up"]
-        
-    def action(self, choice):
-        if choice == "pick_up":
-            gold = self.gold
-            if self.gold == None:
-                gold = self.character.depth*99
-            self.character.gold += gold
-            self.success("You've picked up the gold!")
-        else:
-            raise ValueError("Invalid choice")
+    
+    def action_pick_up(self):
+        gold = self.gold
+        if self.gold == None:
+            gold = self.character.depth*99
+        self.character.gold += gold
+        self.success("You've picked up the gold!")
 
 class TrapRoom(Room):
     __tablename__ = "tc_rooms_trap_rooms"
@@ -175,13 +175,10 @@ class TrapRoom(Room):
             self.character.messages.append("It's a trap!")
             self.character.choices += ["run_through"]
         
-    def action(self, choice):
-        if choice == "run_through":
-            self.character.hurt(self.damage)
-            self.character.messages.append("You ran through the trap, taking {} damage!".format(self.damage))
-            self.character.proceed()
-        else:
-            raise ValueError("Invalid choice")
+    def action_run_through(self):
+        self.character.hurt(self.damage)
+        self.character.messages.append("You ran through the trap, taking {} damage!".format(self.damage))
+        self.character.proceed()
 
 class MonsterRoom(Room):
     __tablename__ = "tc_rooms_monster_rooms"
@@ -209,21 +206,19 @@ class MonsterRoom(Room):
         self.character.messages.append(message)
         self.character.room_state = "failure"
         
-    def action(self, choice):
-        if choice == "fight":
-            if self.creature.fighting <= self.character.fighting:
-                damage = self.creature.fighting*2
-                self.character.hurt(damage)
-                self.success("You have beaten {} losing {} HP.".format(self.creature.name, damage))
-            else:
-                self.failure("{} has beaten you up...".format(self.creature.name))
-        elif choice == "sway":
-            if self.creature.swaying <= self.character.swaying:
-                self.success("You've swayed past {}!".format(self.creature.name))
-            else:
-                self.failure("You failed to sway past {}...".format(self.creature.name))
+    def action_fight(self):
+        if self.creature.fighting <= self.character.fighting:
+            damage = self.creature.fighting*2
+            self.character.hurt(damage)
+            self.success("You have beaten {} losing {} HP.".format(self.creature.name, damage))
         else:
-            raise ValueError("Invalid choice")
+            self.failure("{} has beaten you up...".format(self.creature.name))
+
+    def action_sway(self):
+        if self.creature.swaying <= self.character.swaying:
+            self.success("You've swayed past {}!".format(self.creature.name))
+        else:
+            self.failure("You failed to sway past {}...".format(self.creature.name))
 
 class GuardianRoom(Room):
     __tablename__ = "tc_rooms_guardian_rooms"
@@ -250,25 +245,24 @@ class GuardianRoom(Room):
         self.character.hurt(damage)
         self.character.messages.append(message)
         self.character.room_state = "failure"
-        
-    def action(self, choice):
-        if choice == "ignore":
-            self.character.messages.append("You silently walked towards the door.")
-            self.character.proceed()
-        elif choice == "fight":
-            if self.creature.fighting <= self.character.fighting:
-                damage = self.creature.fighting*2
-                self.character.hurt(damage)
-                self.success("You have beaten {} losing {} HP.".format(self.creature.name, damage))
-            else:
-                self.failure("{} has beaten you up...".format(self.creature.name))
-        elif choice == "sway":
-            if self.creature.swaying <= self.character.swaying:
-                self.success("You've swayed past {}!".format(self.creature.name))
-            else:
-                self.failure("You failed to sway past {}...".format(self.creature.name))
+    
+    def choice_ignore(self):
+        self.character.messages.append("You silently walked towards the door.")
+        self.character.proceed()
+    
+    def choice_fight(self):
+        if self.creature.fighting <= self.character.fighting:
+            damage = self.creature.fighting*2
+            self.character.hurt(damage)
+            self.success("You have beaten {} losing {} HP.".format(self.creature.name, damage))
         else:
-            raise ValueError("Invalid choice")
+            self.failure("{} has beaten you up...".format(self.creature.name))
+    
+    def choice_sway(self):
+        if self.creature.swaying <= self.character.swaying:
+            self.success("You've swayed past {}!".format(self.creature.name))
+        else:
+            self.failure("You failed to sway past {}...".format(self.creature.name))
             
 class InventoryItem(Base):
     __tablename__ = 'tc_inventory_items'
@@ -355,7 +349,7 @@ class Character(Base):
         
     def heal(self, heal, message=None):
         if message: self.messages.append(message.format(heal))
-        if self.hp > 100:
+        if self.hp == 100:
             self.messages.append("But it had no effect!")
         else:
             self.hp += heal
