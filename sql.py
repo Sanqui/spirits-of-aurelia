@@ -375,10 +375,10 @@ if __name__ == "__main__":
         session.add(item)
     
     creatures = [
-        Creature(name="Rat", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133261904284.png", type="rat", beast=False, fighting=1, swaying=3),
-        Creature(name="Bear", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133267590222.png", type="bear", beast=True, fighting=5, swaying=1),
-        Creature(name="Pony", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133390050052.png", type="pony", beast=True, fighting=5, swaying=5),
-        Creature(name="Ponyta", sprite="http://www.zabij10prasat.cz/kusaba/z10p/src/133390054533.png", type="pony", beast=True, fighting=20, swaying=20)
+        Creature(name="Rat", sprite="/static/mobs/mob_rat.png", type="rat", beast=False, fighting=1, swaying=3),
+        Creature(name="Bear", sprite="/static/mobs/mob_bear.png", type="bear", beast=True, fighting=5, swaying=1),
+        Creature(name="Pony", sprite="/static/mobs/mob_rat.png", type="pony", beast=True, fighting=5, swaying=5),
+        Creature(name="Ponyta", sprite="/static/mobs/mob_rat.png", type="pony", beast=True, fighting=20, swaying=20)
         ]
     for creature in creatures:
         session.add(creature)
