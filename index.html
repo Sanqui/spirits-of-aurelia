@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
 <head>
-    <title>trollcraft v0a</title>
+    <title>Spirits of Aurelia v0a</title>
     <style>
     body, html {height:95%;}
     
@@ -12,7 +12,7 @@
     
     .pane {border:1px solid red; height:100%; overflow-y:auto;}
     .leftpane {width:20%; float:left; }
-    .middlepane {width:50%; margin:auto;}
+    .middlepane {max-width:709px; min-width:709px;  margin:auto;}
     .rightpane {width:20%; float:right;}
     
     .levelexp {border:1px solid black; text-align:center;}
@@ -29,11 +29,14 @@
     #skills {clear:both;}
     
     #chat {height:90%;}
-    
+    #chatbox {width:90%;}
+
     .tab {width:22%; background:yellow;}
     #choices buttion {width:22%; background:lightgreen; border-right:1px solid darkgreen;}
     
-    .screen {height:300px; background:lightblue;}
+    .screen {min-height: 350px; max-height:455px; background:lightblue url('/static/rooms/1.png'); background-size:cover; color:white;}
+    #sprite-0 {margin-left:52px; display:inline-block;}
+    #sprite-1 {display:inline-block;}
     
     #console {overflow-y:scroll; width:100%; height:6em; line-height:1em;}
     .console_new {color:darkgreen;}
@@ -104,9 +107,11 @@
         
         $("#room_type").html("room type: "+room.type)
         
+        $("#sprite-0").html("<img src='/static/mobs/job_rogue.png'>")
+        
         if (room.sprite) {
-            $("#sprite-0").html("<img src='"+room.sprite+"'>")
-        } else $("#sprite-0").html("")
+            $("#sprite-1").html("<img src='"+room.sprite+"'>")
+        } else $("#sprite-1").html("")
             
         
         $("#choices").html("")
@@ -193,6 +198,7 @@
             <div id="depth"></div>
             <div id="score">score</div>
             <div id="sprite-0"></div>
+            <div id="sprite-1"></div>
         </div>
         <div class="screen" id="screen_abilities">
             nub
